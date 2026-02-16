@@ -26,3 +26,12 @@ type Borrow struct {
 	ReturnDate *time.Time `json:"return_date,omitempty"` // Pointer for nullable time
 	Status     string     `json:"status"`
 }
+
+type User struct {
+	ID        int       `json:"id"`
+	GoogleID  string    `json:"google_id"`
+	Email     string    `json:"email"`
+	Name      string    `json:"name"`
+	AvatarURL string    `json:"avatar_url"`
+	CreatedAt time.Time `json:"created_at"`
+}

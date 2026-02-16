@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"library-system/pkg/auth"
 	"library-system/pkg/db"
 	"library-system/pkg/schema"
 
@@ -47,9 +48,25 @@ func main() {
 		GraphiQL: true,
 	})
 
+	// Init Auth
+	auth.InitAuth()
+
 	r := mux.NewRouter()
 	r.Use(loggingMiddleware)
-	r.Handle("/graphql", h)
+
+	// Auth Routes
+	r.HandleFunc("/auth/google/login", auth.GoogleLoginHandler)
+	r.HandleFunc("/auth/google/callback", auth.GoogleCallbackHandler)
+
+	// Protected GraphQL endpoint (Optional: apply to all or specific)
+	// For now, keeping public, but here is how to protect it:
+	r.Handle("/graphql", auth.AuthMiddleware(h))
+	//r.Handle("/graphql", h)
+
+	// Example protected route
+	r.Handle("/api/me", auth.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("You are authenticated!"))
+	})))
 
 	// Enable pprof on Gorilla router by forwarding /debug/pprof/ to DefaultServeMux
 	r.PathPrefix("/debug/pprof/").Handler(http.DefaultServeMux)
