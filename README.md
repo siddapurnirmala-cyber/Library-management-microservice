@@ -1,95 +1,34 @@
-# Library Management System
+# Library Management Microservice
 
-A simple backend for a Library Management System using Golang, Gorilla Mux, PostgreSQL, and GraphQL.
+## About
+This is a high-performance **Library Management Microservice** built with **Go (Golang)** and **GraphQL**. It is designed to efficiently manage library operations such as tracking books, registering members, and handling book borrowing/return cycles.
 
-## Prerequisites
+The service leverages **PostgreSQL** for data persistence and implements advanced optimizations like database connection pooling and rigorous performance profiling.
 
-- [Go](https://golang.org/) (1.18+)
-- [PostgreSQL](https://www.postgresql.org/)
+## Key Features
+-   **GraphQL API**: Flexible and efficient data querying for Books, Members, and Borrowing records.
+-   **Performance Optimized**: 
+    -   Implements **Database Connection Pooling** for low-latency requests.
+    -   Built-in **N+1 Query Handling** strategies.
+    -   Integrated **pprof** for real-time CPU and Memory profiling.
+-   **Transaction Management**: Ensures data integrity during book borrowing and returning.
+-   **Scalable Architecture**: Service, Repository, and API layers are decoupled for easy maintenance.
 
-## Setup
+## Tech Stack
+-   **Language**: Go (Golang)
+-   **API Standard**: GraphQL
+-   **Database**: PostgreSQL
+-   **Routing**: Gorilla Mux
+-   **Driver**: lib/pq
 
-1.  **Clone the repository** (if applicable) or navigate to the project directory.
-
-2.  **Database Setup**
-    - Create a PostgreSQL database named `library`.
-    - Run the initialization script to create tables:
-      ```bash
-      psql -U postgres -d library -f scripts/init.sql
-      ```
-
-3.  **Install Dependencies**
+## Getting Started
+1.  **Clone the repository**:
     ```bash
-    go mod tidy
+    git clone https://github.com/siddapurnirmala-cyber/Library-management-microservice.git
     ```
-
-4.  **Configuration**
-    - The application defaults to: `host=localhost port=5432 user=postgres password=password dbname=library sslmode=disable`
-    - You can override this by setting the `DB_CONNECTION_STRING` environment variable.
-
-5.  **Run the Server**
+2.  **Setup Database**: Use `scripts/init.sql` to initialize your PostgreSQL instance.
+3.  **Run the Server**:
     ```bash
     go run cmd/server/main.go
     ```
-    The server will start at `http://localhost:8080`.
-
-## API Usage (GraphQL)
-
-You can use the built-in GraphiQL playground at `http://localhost:8080/graphql` or use Postman.
-
-### Example Queries & Mutations
-
-#### 1. Create a Member
-```graphql
-mutation {
-  createMember(name: "John Doe", email: "john@example.com") {
-    id
-    name
-    email
-  }
-}
-```
-
-#### 2. Create a Book
-```graphql
-mutation {
-  createBook(title: "The Go Programming Language", author: "Donovan & Kernighan", published_year: 2015, total_copies: 5) {
-    id
-    title
-    available_copies
-  }
-}
-```
-
-#### 3. Borrow a Book
-```graphql
-mutation {
-  borrowBook(member_id: 1, book_id: 1) {
-    id
-    status
-    borrow_date
-  }
-}
-```
-
-#### 4. Return a Book
-```graphql
-mutation {
-  returnBook(borrow_id: 1) {
-    id
-    status
-    return_date
-  }
-}
-```
-
-#### 5. Get All Books
-```graphql
-query {
-  books {
-    id
-    title
-    available_copies
-  }
-}
-```
+4.  **Explore API**: Open `http://localhost:8080/graphql` for the GraphiQL playground.
