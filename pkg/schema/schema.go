@@ -3,6 +3,7 @@ package schema
 import (
 	"database/sql"
 	"errors"
+	"library-system/pkg/auth"
 	"library-system/pkg/db"
 	"library-system/pkg/models"
 
@@ -16,6 +17,10 @@ var RootQuery = graphql.NewObject(graphql.ObjectConfig{
 		"members": &graphql.Field{
 			Type: graphql.NewList(MemberType),
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				role := auth.GetRoleFromContext(p.Context)
+				if role != "ADMIN" && role != "LIBRARIAN" {
+					return nil, errors.New("forbidden: insufficient permissions to view members")
+				}
 				rows, err := db.DB.Query("SELECT id, name, email, joined_at FROM members")
 				if err != nil {
 					return nil, err
@@ -35,6 +40,7 @@ var RootQuery = graphql.NewObject(graphql.ObjectConfig{
 		"books": &graphql.Field{
 			Type: graphql.NewList(BookType),
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				// All authenticated users can view books
 				rows, err := db.DB.Query("SELECT id, title, author, published_year, total_copies, available_copies FROM books")
 				if err != nil {
 					return nil, err
@@ -54,6 +60,10 @@ var RootQuery = graphql.NewObject(graphql.ObjectConfig{
 		"borrows": &graphql.Field{
 			Type: graphql.NewList(BorrowType),
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				role := auth.GetRoleFromContext(p.Context)
+				if role != "ADMIN" && role != "LIBRARIAN" {
+					return nil, errors.New("forbidden: insufficient permissions to view borrow history")
+				}
 				rows, err := db.DB.Query("SELECT id, member_id, book_id, borrow_date, return_date, status FROM borrow")
 				if err != nil {
 					return nil, err
@@ -88,6 +98,10 @@ var RootMutation = graphql.NewObject(graphql.ObjectConfig{
 				"email": &graphql.ArgumentConfig{Type: graphql.NewNonNull(graphql.String)},
 			},
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				role := auth.GetRoleFromContext(p.Context)
+				if role != "ADMIN" {
+					return nil, errors.New("forbidden: only ADMIN can manage members")
+				}
 				name := p.Args["name"].(string)
 				email := p.Args["email"].(string)
 				var m models.Member
@@ -106,6 +120,10 @@ var RootMutation = graphql.NewObject(graphql.ObjectConfig{
 				"email": &graphql.ArgumentConfig{Type: graphql.NewNonNull(graphql.String)},
 			},
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				role := auth.GetRoleFromContext(p.Context)
+				if role != "ADMIN" {
+					return nil, errors.New("forbidden: only ADMIN can manage members")
+				}
 				id := p.Args["id"].(int)
 				name := p.Args["name"].(string)
 				email := p.Args["email"].(string)
@@ -123,6 +141,10 @@ var RootMutation = graphql.NewObject(graphql.ObjectConfig{
 				"id": &graphql.ArgumentConfig{Type: graphql.NewNonNull(graphql.Int)},
 			},
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				role := auth.GetRoleFromContext(p.Context)
+				if role != "ADMIN" {
+					return nil, errors.New("forbidden: only ADMIN can manage members")
+				}
 				id := p.Args["id"].(int)
 				var m models.Member
 				err := db.DB.QueryRow("DELETE FROM members WHERE id = $1 RETURNING id, name, email, joined_at", id).Scan(&m.ID, &m.Name, &m.Email, &m.JoinedAt)
@@ -141,6 +163,10 @@ var RootMutation = graphql.NewObject(graphql.ObjectConfig{
 				"total_copies":   &graphql.ArgumentConfig{Type: graphql.NewNonNull(graphql.Int)},
 			},
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				role := auth.GetRoleFromContext(p.Context)
+				if role != "ADMIN" {
+					return nil, errors.New("forbidden: only ADMIN can add books")
+				}
 				title := p.Args["title"].(string)
 				author := p.Args["author"].(string)
 				pubYear := p.Args["published_year"].(int)
@@ -164,6 +190,10 @@ var RootMutation = graphql.NewObject(graphql.ObjectConfig{
 				"total_copies":   &graphql.ArgumentConfig{Type: graphql.NewNonNull(graphql.Int)},
 			},
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				role := auth.GetRoleFromContext(p.Context)
+				if role != "ADMIN" {
+					return nil, errors.New("forbidden: only ADMIN can update books")
+				}
 				id := p.Args["id"].(int)
 				title := p.Args["title"].(string)
 				author := p.Args["author"].(string)
@@ -192,6 +222,10 @@ var RootMutation = graphql.NewObject(graphql.ObjectConfig{
 				"id": &graphql.ArgumentConfig{Type: graphql.NewNonNull(graphql.Int)},
 			},
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				role := auth.GetRoleFromContext(p.Context)
+				if role != "ADMIN" {
+					return nil, errors.New("forbidden: only ADMIN can delete books")
+				}
 				id := p.Args["id"].(int)
 				var b models.Book
 				err := db.DB.QueryRow("DELETE FROM books WHERE id = $1 RETURNING id, title, author, published_year, total_copies, available_copies", id).Scan(&b.ID, &b.Title, &b.Author, &b.PublishedYear, &b.TotalCopies, &b.AvailableCopies)
@@ -208,6 +242,10 @@ var RootMutation = graphql.NewObject(graphql.ObjectConfig{
 				"book_id":   &graphql.ArgumentConfig{Type: graphql.NewNonNull(graphql.Int)},
 			},
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				role := auth.GetRoleFromContext(p.Context)
+				if role != "ADMIN" && role != "LIBRARIAN" {
+					return nil, errors.New("forbidden: only ADMIN or LIBRARIAN can issue books")
+				}
 				memberID := p.Args["member_id"].(int)
 				bookID := p.Args["book_id"].(int)
 
@@ -252,6 +290,10 @@ var RootMutation = graphql.NewObject(graphql.ObjectConfig{
 				"borrow_id": &graphql.ArgumentConfig{Type: graphql.NewNonNull(graphql.Int)},
 			},
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				role := auth.GetRoleFromContext(p.Context)
+				if role != "ADMIN" && role != "LIBRARIAN" {
+					return nil, errors.New("forbidden: only ADMIN or LIBRARIAN can return books")
+				}
 				borrowID := p.Args["borrow_id"].(int)
 
 				tx, err := db.DB.Begin()

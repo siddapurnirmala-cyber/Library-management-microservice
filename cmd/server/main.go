@@ -57,6 +57,7 @@ func main() {
 	// Auth Routes
 	r.HandleFunc("/auth/google/login", auth.GoogleLoginHandler)
 	r.HandleFunc("/auth/google/callback", auth.GoogleCallbackHandler)
+	r.Handle("/auth/me", auth.AuthMiddleware(http.HandlerFunc(auth.MeHandler)))
 
 	// Protected GraphQL endpoint (Optional: apply to all or specific)
 	// For now, keeping public, but here is how to protect it:

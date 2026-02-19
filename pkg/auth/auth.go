@@ -53,7 +53,7 @@ func GenerateStateOauthCookie(w http.ResponseWriter) string {
 
 func GoogleLoginHandler(w http.ResponseWriter, r *http.Request) {
 	oauthState := GenerateStateOauthCookie(w)
-	u := googleOauthConfig.AuthCodeURL(oauthState)
+	u := googleOauthConfig.AuthCodeURL(oauthState, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", "select_account"))
 	http.Redirect(w, r, u, http.StatusTemporaryRedirect)
 }
 
@@ -132,10 +132,11 @@ func GoogleCallbackHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Set Token in Cookie or Response
 	// Using a cookie for simplicity in browser
+	// Set Token in Cookie or Response
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session_token",
 		Value:    sessionToken,
-		Expires:  time.Now().Add(10 * time.Minute), // Valid for 10 mins as requested
+		Expires:  time.Now().Add(24 * time.Hour), // Match the 24h expiration
 		HttpOnly: true,
 		Path:     "/",
 	})
@@ -147,13 +148,13 @@ func GoogleCallbackHandler(w http.ResponseWriter, r *http.Request) {
 
 func upsertUser(user *models.User) error {
 	query := `
-		INSERT INTO users (google_id, email, name, avatar_url)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO users (google_id, email, name, avatar_url, role)
+		VALUES ($1, $2, $3, $4, 'MEMBER')
 		ON CONFLICT (email) DO UPDATE 
 		SET name = EXCLUDED.name, avatar_url = EXCLUDED.avatar_url, google_id = EXCLUDED.google_id
-		RETURNING id`
+		RETURNING id, role`
 
-	err := db.DB.QueryRow(query, user.GoogleID, user.Email, user.Name, user.AvatarURL).Scan(&user.ID)
+	err := db.DB.QueryRow(query, user.GoogleID, user.Email, user.Name, user.AvatarURL).Scan(&user.ID, &user.Role)
 	return err
 }
 
@@ -161,7 +162,8 @@ func GenerateJWT(user models.User) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id": user.ID,
 		"email":   user.Email,
-		"exp":     time.Now().Add(10 * time.Minute).Unix(),
+		"role":    user.Role,
+		"exp":     time.Now().Add(24 * time.Hour).Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -200,7 +202,50 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Context could be enriched here with user info
-		next.ServeHTTP(w, r)
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
+			http.Error(w, "Unauthorized: Invalid claims", http.StatusUnauthorized)
+			return
+		}
+
+		// Inject user_id and role into context
+		ctx := context.WithValue(r.Context(), "user_id", claims["user_id"])
+		ctx = context.WithValue(ctx, "role", claims["role"])
+
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// MeHandler returns the current user's info based on the session token
+func MeHandler(w http.ResponseWriter, r *http.Request) {
+	userId, ok := r.Context().Value("user_id").(float64)
+	if !ok {
+		// Try int if it's from internal context
+		idInt, okInt := r.Context().Value("user_id").(int)
+		if !okInt {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		userId = float64(idInt)
+	}
+
+	var user models.User
+	err := db.DB.QueryRow("SELECT id, email, name, avatar_url, role FROM users WHERE id = $1", int(userId)).
+		Scan(&user.ID, &user.Email, &user.Name, &user.AvatarURL, &user.Role)
+	if err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(user)
+}
+
+// GetRoleFromContext retrieves the user role from context
+func GetRoleFromContext(ctx context.Context) string {
+	role, ok := ctx.Value("role").(string)
+	if !ok {
+		return ""
+	}
+	return role
 }
